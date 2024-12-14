@@ -1,22 +1,21 @@
 import OpenAI from "npm:openai@4.76.1";
 import { mcpClient } from "./client.ts";
 import {
-  applyToolCallIfExists,
+  applyToolCallsIfPresent,
   isDone,
   mapToolListToOpenAiTools,
+  type ToolsListServerResponseType,
 } from "./openai-utils.ts";
 import { OPENAI_API_KEY, OPENAI_MODEL } from "./env.ts";
 import { MessageHandler, type MessageType } from "./messages.ts";
 import { performNextStepSystemPrompt } from "./prompts.ts";
 import { askForInput } from "./cli.ts";
 
-const mainLoop = async (messagesHandler: MessageHandler) => {
-  const openai = new OpenAI({
-    apiKey: OPENAI_API_KEY,
-  });
-
-  const tools = await mcpClient.listTools();
-
+const agentLoop = async (
+  openai: OpenAI,
+  openAiTools: OpenAI.Chat.Completions.ChatCompletionTool[],
+  messagesHandler: MessageHandler
+) => {
   // Maximum number of autonomous steps
   const maxIterations = 10;
 
@@ -25,7 +24,7 @@ const mainLoop = async (messagesHandler: MessageHandler) => {
       model: OPENAI_MODEL,
       temperature: 0.2,
       messages: messagesHandler.getMessages(),
-      tools: mapToolListToOpenAiTools(tools),
+      tools: openAiTools,
     });
 
     messagesHandler.addMessage(response.choices[0].message);
@@ -34,7 +33,7 @@ const mainLoop = async (messagesHandler: MessageHandler) => {
       break;
     }
 
-    const toolCallResponse = await applyToolCallIfExists(response);
+    const toolCallResponse = await applyToolCallsIfPresent(response);
 
     if (toolCallResponse.length) {
       messagesHandler.addMessages(toolCallResponse);
@@ -44,29 +43,38 @@ const mainLoop = async (messagesHandler: MessageHandler) => {
   }
 };
 
-const messagesHandler = new MessageHandler();
+const main = async () => {
+  const messagesHandler = new MessageHandler();
 
-try {
-  while (true) {
-    const input = await askForInput();
+  const openai = new OpenAI({
+    apiKey: OPENAI_API_KEY,
+  });
 
-    if (input === "exit") {
-      messagesHandler.storeMessages();
-      break;
+  const mcpToolsList = await mcpClient.listTools();
+  const openAiTools = mapToolListToOpenAiTools(mcpToolsList);
+
+  try {
+    while (true) {
+      const input = await askForInput();
+
+      if (input === "exit") {
+        messagesHandler.storeMessages();
+        break;
+      }
+
+      messagesHandler.addMessage({
+        role: "user",
+        content: input,
+      } as MessageType);
+
+      await agentLoop(openai, openAiTools, messagesHandler);
     }
-
-    messagesHandler.addMessage({
-      role: "user",
-      content: input,
-    } as MessageType);
-
-    await mainLoop(messagesHandler);
+  } catch (error) {
+    console.error(error);
+    messagesHandler.storeMessages();
+  } finally {
+    mcpClient.close();
   }
-} catch (error) {
-  console.error(error);
-  messagesHandler.storeMessages();
-} finally {
-  mcpClient.close();
-}
+};
 
-mcpClient.close();
+await main();

@@ -1,5 +1,5 @@
 import OpenAI from "npm:openai@4.76.1";
-import { callTool } from "./call-tool.ts";
+import { callTool } from "./mcp.ts";
 import { mcpClient } from "./client.ts";
 import type { MessageType } from "./messages.ts";
 
@@ -12,7 +12,7 @@ type OpenAiToolsInputType = {
   };
 };
 
-type ToolsListServerResponseType = {
+export type ToolsListServerResponseType = {
   tools: {
     name: string;
     description?: string;
@@ -43,7 +43,7 @@ export const mapToolListToOpenAiTools = (
  * @param response
  * @returns
  */
-export const applyToolCallIfExists = async (
+export const applyToolCallsIfPresent = async (
   response: OpenAI.Chat.Completions.ChatCompletion
 ): Promise<MessageType[]> => {
   if (!response.choices?.[0]?.message?.tool_calls?.length) {
@@ -58,16 +58,22 @@ export const applyToolCallIfExists = async (
 
     const [err, result] = await callTool(mcpClient, name, args);
 
-    // console.log("Got result from tool call:", result);
-
     if (err) {
-      // console.log("An error occurred while calling the tool:", err);
-      throw err;
+      toolCallResults.push({
+        role: "tool",
+        content: `ERROR: Tool call failed - ${err}`,
+        tool_call_id: toolCallId,
+      });
+      continue;
     }
 
     if (!result.content?.length) {
-      // console.log("No content returned from tool");
-      throw new Error("No content returned from tool");
+      toolCallResults.push({
+        role: "tool",
+        content: `WARNING: No content returned from tool`,
+        tool_call_id: toolCallId,
+      });
+      continue;
     }
 
     switch (result.content[0].type) {
@@ -97,7 +103,5 @@ export const isDone = (
     throw new Error("No choices found in response");
   }
 
-  const choice = response.choices[0];
-
-  return choice.finish_reason === "stop";
+  return response.choices[0].finish_reason === "stop";
 };
