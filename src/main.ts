@@ -4,7 +4,6 @@ import {
   applyToolCallsIfPresent,
   isDone,
   mapToolListToOpenAiTools,
-  type ToolsListServerResponseType,
 } from "./openai-utils.ts";
 import { OPENAI_API_KEY, OPENAI_MODEL } from "./env.ts";
 import { MessageHandler, type MessageType } from "./messages.ts";
