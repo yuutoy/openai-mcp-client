@@ -1,3 +1,10 @@
+# 変更点
+元のリポジトリに、ローカルテスト用のサーバー実装を追加しました。
+このサーバー実装は　https://modelcontextprotocol.io/quickstart/server　の実装と同じです。
+フォークして.envに OPENAI_API_KEY=~~ を入れるとすぐに使用できます。
+![image](https://github.com/user-attachments/assets/8f14c26a-fec7-48e2-ac5a-a6bc872f9578)
+
+
 # Intro
 
 This is a simple example of how to use the Model Context Protocol (MCP) with OpenAI's API to create a simple agent acting from a chat context. Feel free to use this as a starting point for your own projects.
